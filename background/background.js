@@ -1,28 +1,41 @@
-var Requests_Sent = [];
+var sentRequests = [];
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
-    function(info) {
+    function(requestInfo) {
         // Access request headers from info object
-        var requestHeaders = info.requestHeaders;
+        var requestHeaders = requestInfo.requestHeaders;
+        var status = requestInfo.statusCode;
 
         // Send message to content.js
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
             chrome.tabs.sendMessage(tabs[0].id, {
-                url: info.url,
-                method: info.method,
-                headers: requestHeaders
+                url: requestInfo.url,
+                method: requestInfo.method
             });
         });
 
-        // Add request to Requests_Sent
-        Requests_Sent.push({
-            url: info.url,
-            method: info.method
+        // Add request to sentRequests
+        sentRequests.push({
+            url: requestInfo.url,
+            method: requestInfo.method
         });
         return {requestHeaders: requestHeaders};
     },
-    //All URLs
+    // All URLs
     { urls: ["<all_urls>"] },
-    //Block request until message is sent
+    // Block request until message is sent
     ["blocking", "requestHeaders"]
 );
+
+
+
+// Load HTML file
+chrome.runtime.onInstalled.addListener(async () => {
+    let url = chrome.runtime.getURL('background/index.html');
+    let tab = await chrome.tabs.create({ url });
+});
+
+
+// On Document Load
+document.addEventListener('DOMContentLoaded', function() {
+});
