@@ -1,16 +1,44 @@
-var requestsTable = [];
+var requestsTable = {};
 
 // On Document Load
 document.addEventListener('DOMContentLoaded', function() {
+    // Toggle visiblity
+    var coll = document.getElementsByClassName("collapsible");
+    var i;
+
+    for (i = 0; i < coll.length; i++) {
+        coll[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var content = this.nextElementSibling;
+            if (content.style.display === "block") {
+            content.style.display = "none";
+            } else {
+            content.style.display = "block";
+            }
+        });
+    }
+
     // On Initial Page Load
     chrome.runtime.getBackgroundPage(function(backgroundPage) {
         // Clear requestsTable
-        requestsTable = [];
+        requestsTable = {};
         var sentRequests = backgroundPage.sentRequests;
-        for (var i = 0; i < sentRequests.length; i++) {
-            // Add request to requestsTable
-            requestsTable.push(sentRequests[i]);
-            addTableRow(i, sentRequests[i].method, sentRequests[i].url, "WIP", "WIP");
+        for (var key in sentRequests) {
+            var request = sentRequests[key];
+            var id = request.id;
+            var method = request.method;
+            var url = request.url;
+            var status = request.status;
+            var type = "Unknown";
+            for (var key in request.responseHeaders) {
+                var header = request.responseHeaders[key];
+                if (header["name"] == "content-type") {
+                    type = header["value"];
+                    break;
+                }
+            }
+            addTableRow(id, method, url, status, type);
+            requestsTable[id] = request;
         }
     });
 
@@ -19,23 +47,61 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(function() {
         chrome.runtime.getBackgroundPage(function(backgroundPage) {
             var sentRequests = backgroundPage.sentRequests;
-            for (var i = 0; i < sentRequests.length; i++) {
-                // Check if request is already in requestsTable
-                if (requestsTable.includes(sentRequests[i])) {
-                    continue;
+            for (var key in sentRequests) {
+                var request = sentRequests[key];
+                if (!requestsTable[request.id]) {
+                    var id = request.id;
+                    var method = request.method;
+                    var url = request.url;
+                    var status = request.status;
+                    var type = "Unknown";
+                    for (var key in request.responseHeaders) {
+                        var header = request.responseHeaders[key];
+                        if (header["name"] == "content-type") {
+                            type = header["value"];
+                            break;
+                        }
+                    }
+                    addTableRow(id, method, url, status, type);
+                    requestsTable[id] = request;
                 }
-                // Add request to requestsTable
-                requestsTable.push(sentRequests[i]);
-                addTableRow(i, sentRequests[i].method, sentRequests[i].url, "WIP", "WIP");
             }
         });
     }, 1000);
 });
 
+
+
+
+
 function addTableRow(id, method, url, status, type) {
     var table = document.getElementById("requests_table");
     var tbody = table.getElementsByTagName('tbody')[0];
     const tr = document.createElement('tr');
+    // Add click listener to tr
+    tr.addEventListener('click', function() {
+        // Loop through all rows and remove active id
+        var rows = table.getElementsByTagName('tr');
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].classList.remove('active');
+        }
+        // Add active id to clicked row
+        tr.classList.add('active');
+
+        // Add info to responseHeaders id
+        var responseHeaders = document.getElementById("responseHeaders");
+        responseHeaders.innerHTML = "";
+        var request = requestsTable[id];
+
+        //request.responseHeaders
+        for (var key in request.responseHeaders) {
+            var header = request.responseHeaders[key];
+            // Create <p>
+            var p = document.createElement('p');
+            p.textContent = header["name"] + ": " + header["value"];
+            responseHeaders.appendChild(p);
+        }
+    });
 
     const td1 = document.createElement('td');
     td1.textContent = id;

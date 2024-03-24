@@ -1,25 +1,12 @@
-var sentRequests = [];
+var sentRequests = {};
 
+
+// Add listener for onBeforeSendHeaders
+// url,method
 chrome.webRequest.onBeforeSendHeaders.addListener(
     function(requestInfo) {
-        // Access request headers from info object
-        var requestHeaders = requestInfo.requestHeaders;
-        var status = requestInfo.statusCode;
 
-        // Send message to content.js
-        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-            chrome.tabs.sendMessage(tabs[0].id, {
-                url: requestInfo.url,
-                method: requestInfo.method
-            });
-        });
-
-        // Add request to sentRequests
-        sentRequests.push({
-            url: requestInfo.url,
-            method: requestInfo.method
-        });
-        return {requestHeaders: requestHeaders};
+        return {};
     },
     // All URLs
     { urls: ["<all_urls>"] },
@@ -27,6 +14,73 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
     ["blocking", "requestHeaders"]
 );
 
+// Add listener for onBeforeRequest
+// url,method, requestHeaders, queryParams
+chrome.webRequest.onBeforeRequest.addListener(
+    function(requestInfo) {
+        var url = new URL(requestInfo.url);
+        var queryParams = Object.fromEntries(url.searchParams.entries());
+        var status = requestInfo.statusCode;
+        var method = requestInfo.method;
+
+        if (requestInfo.requestBody && requestInfo.requestBody.raw) {
+            var payload = String.fromCharCode.apply(null, new Uint8Array(requestInfo.requestBody.raw[0].bytes));
+        }
+
+        // Add request to sentRequests
+        sentRequests[url] = {
+            id: Object.keys(sentRequests).length,
+            url: url,
+            method: method,
+            requestHeaders: requestInfo.requestHeaders,
+            queryParams: queryParams,
+            payload: payload
+        };
+
+        return {};
+    },
+    // Filters for URLs
+    { urls: ["<all_urls>"] },
+    // Extra information to listen for
+    ["requestBody"]
+);
+
+// Add listener for onHeadersReceived
+chrome.webRequest.onHeadersReceived.addListener(
+    function(responseInfo) {
+        // Extract response headers
+        var responseHeaders = responseInfo.responseHeaders;
+        // Access other response information
+        var status = responseInfo.statusCode;
+
+        // Check if url is in sentRequests
+        if (sentRequests[responseInfo.url]) {
+            // Update sentRequests with response headers
+            sentRequests[responseInfo.url].responseHeaders = responseHeaders;
+            sentRequests[responseInfo.url].status = status;
+        }
+
+
+        return { };
+    },
+    // Filters for URLs
+    { urls: ["<all_urls>"] },
+    // Extra information to listen for
+    ["responseHeaders"]
+);
+
+// Add listener for onCompleted
+// url,method, status, requestHeaders
+chrome.webRequest.onCompleted.addListener(
+    function(requestInfo) {
+
+        return {};
+    },
+    // All URLs
+    { urls: ["<all_urls>"] },
+    // Block request until message is sent
+    ["responseHeaders"]
+);
 
 
 // Load HTML file
